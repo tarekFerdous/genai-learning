@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0002 · RAG by Hand</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+<p class="meta">Lesson 0002 · Phase 1: Foundations · ~40 min</p>
+<h1>RAG by hand: embeddings, similarity, and the right order</h1>
+<p class="subtitle">One win: a ~40-line script that does real RAG with no vector DB and no framework magic. You write every step yourself, so you can see what each one does.</p>
+
+<div class="callout">
+<strong>Why this next?</strong> In Lesson 0001 you put the LLM call <em>before</em> similarity search.
+Frameworks hide the order inside a single <code>chain.invoke()</code>, so we're building it with no abstractions first.
+Once you've written retrieve → build prompt → call the model yourself, every vector DB and LangChain retriever is just a faster version of this script.
+</div>
+
+<h2>1 · Warm-up</h2>
+<p>Answer from memory first.</p>
+<textarea placeholder="If similarity search returns the wrong chunks, can the LLM still give the right answer from your documents? Why?"></textarea>
+<details><summary>Check</summary>No. The model only sees the chunks you put in the prompt. If retrieval misses, the model either says "I don't know" (good) or guesses from its training data (a hallucination). <strong>Answer quality can't be better than retrieval quality.</strong> You'll prove this yourself in exercise d.</details>
+
+<h2>2 · Knowledge: embeddings and similarity</h2>
+<p>An <strong>embedding model</strong> turns text into a fixed-length list of numbers (a <strong>vector</strong>). Texts with similar meaning end up with vectors that point in similar directions, even when they share no words
+(<a href="https://vickiboykis.com/what_are_embeddings/">Boykis, <em>What are embeddings</em></a>).</p>
+<p><strong>Cosine similarity</strong> measures the angle between two vectors: 1 means the same direction (same meaning), and values near 0 mean unrelated.
+Formula: <code>dot(a, b) / (|a| × |b|)</code>
+(<a href="https://docs.langchain.com/oss/python/integrations/text_embedding">LangChain: Embedding models</a>).</p>
+<table>
+<tr><th>LangChain method</th><th>Use</th></tr>
+<tr><td><code>embed_documents(list_of_texts)</code></td><td>Indexing: one vector per chunk</td></tr>
+<tr><td><code>embed_query(text)</code></td><td>Query time: one vector for the question</td></tr>
+</table>
+<p>A <strong>vector database</strong> does exactly what you're about to write (store text + vector, return the top-k most similar), plus indexing so it stays fast with millions of vectors. That's all it adds.</p>
+
+<div class="quiz">
+  <div class="q" data-correct="1" data-why="Spaced recall from 0001. Reproducible outputs make evals meaningful: if the answer changes every run, you can't tell whether your change helped.">
+    <p>1. (From 0001) For RAG and evals, which temperature do you usually want?</p>
+    <button>High, so answers are creative</button>
+    <button>Low, so answers are reproducible</button>
+    <button>Random, so tests stay varied</button>
+    <button>Maximum, so answers are longer</button>
+  </div>
+  <div class="q" data-correct="0" data-why="It isn't a compressed copy (you can't get the text back from it) and it isn't keywords. That's why you store the chunk text next to its vector.">
+    <p>2. An embedding is…</p>
+    <button>A fixed-length list of numbers encoding meaning</button>
+    <button>A compressed copy of the original text file</button>
+    <button>A list of keywords extracted from the chunk</button>
+    <button>The probability the model assigns each next word</button>
+  </div>
+  <div class="q" data-correct="3" data-why="Cosine compares direction, i.e. meaning. 'Work from home' and 'remote work' score high with no shared words, which keyword search would miss.">
+    <p>3. A cosine similarity near 1 between two embeddings means…</p>
+    <button>The two texts share most exact words</button>
+    <button>The two texts have identical character lengths</button>
+    <button>The two texts came from same document</button>
+    <button>The two texts have very similar meaning</button>
+  </div>
+  <div class="q" data-correct="2" data-why="Each model has its own vector space. Comparing vectors across models is like comparing GPS coordinates with street addresses. Switching embedding models means re-embedding your whole corpus, which is a real production migration cost.">
+    <p>4. Must the query and the chunks use the same embedding model?</p>
+    <button>No, any two embedding models are compatible</button>
+    <button>Only if the vector dimensions differ greatly</button>
+    <button>Yes, vectors from different models aren't comparable</button>
+    <button>Only when using a hosted vector database</button>
+  </div>
+  <p class="score"></p>
+</div>
+
+<h2>3 · Do it</h2>
+<ol class="steps">
+<li>Pull a small local embedding model (274 MB):
+<pre><code>ollama pull nomic-embed-text</code></pre></li>
+<li>Create <code>labs/rag_by_hand.py</code>. Type it out, and read each comment as you go:
+<pre><code>import math
+from langchain.chat_models import init_chat_model
+from langchain.messages import SystemMessage, HumanMessage
+from langchain_ollama import OllamaEmbeddings
+
+# ---------- INDEXING (offline, once) ----------
+# A fictional company handbook: facts the LLM cannot know from training.
+chunks = [
+    "Acme Robotics employees may work remotely up to 3 days per week; Tuesday is a mandatory office day.",
+    "New hires receive a laptop budget of $2,400, refreshed every 3 years.",
+    "Expense reports must be filed within 30 days through the Ledgerly portal.",
+    "The on-call rotation is one week long and pays a $500 stipend.",
+    "Annual leave is 25 days, plus the office closes between Christmas and New Year.",
+    "Production deploys are frozen every Friday after 2pm.",
+    "The cafeteria serves free lunch Monday to Thursday.",
+    "Security incidents must be reported in #sec-incidents within 1 hour.",
+]
+
+embedder = OllamaEmbeddings(model="nomic-embed-text")
+vectors = embedder.embed_documents(chunks)
+index = list(zip(chunks, vectors))  # our "vector DB": text + vector, side by side
+
+
+def cosine(a, b):
+    dot = sum(x * y for x, y in zip(a, b))
+    norms = math.sqrt(sum(x * x for x in a)) * math.sqrt(sum(y * y for y in b))
+    return dot / norms
+
+
+# ---------- QUERYING (per request) ----------
+def retrieve(question, k=2):
+    q = embedder.embed_query(question)                       # 1. embed question
+    scored = [(cosine(q, vec), text) for text, vec in index]  # 2. similarity
+    scored.sort(reverse=True)
+    return scored[:k]                                         # 3. top-k
+
+
+question = "Can I deploy to production on Friday afternoon?"
+hits = retrieve(question)
+for score, text in hits:
+    print(f"{score:.3f}  {text}")
+
+context = "\n".join(f"- {text}" for _, text in hits)          # 4. build prompt
+model = init_chat_model("qwen3:8b", model_provider="ollama", temperature=0)
+response = model.invoke([                                     # 5. THEN call LLM
+    SystemMessage(
+        "Answer using ONLY the context below. "
+        "If the answer is not in the context, say \"I don't know.\"\n\n"
+        f"Context:\n{context}"
+    ),
+    HumanMessage(question),
+])
+print("\n" + response.content)</code></pre></li>
+<li>Run it with <code>uv run rag_by_hand.py</code>. Look at the numbered comments: steps 1–4 are plain Python, and the LLM only shows up in step 5.</li>
+</ol>
+
+<h2>4 · Practice: predict, then run</h2>
+
+<h3>a. Add <code>print(len(vectors[0]))</code>. How many numbers are in one embedding?</h3>
+<textarea></textarea>
+<details><summary>Answer</summary><code>nomic-embed-text</code> gives 768. Every chunk gets the same length no matter how long the text is, so a long chunk gets squeezed into the same 768 numbers as a short one. Keep that in mind for the chunking lesson.</details>
+
+<h3>b. Ask <code>"Is working from home allowed?"</code>. Which chunk ranks first, and roughly what score?</h3>
+<textarea></textarea>
+<details><summary>What you should see</summary>The remote-work chunk wins even though it never says "working from home". That's semantic search. Keyword search would have missed it. Note the scores: they're relative, so look at the gap between #1 and #2, not the absolute number.</details>
+
+<h3>c. Ask <code>"What is the CEO's name?"</code>. What will the model say? What will the top score look like?</h3>
+<textarea></textarea>
+<details><summary>What you should see</summary>"I don't know." <code>retrieve</code> <em>always</em> returns k chunks, even when none of them are relevant. The top score will be noticeably lower. In production you'd add a minimum-score threshold or let the model refuse.</details>
+
+<h3>d. Sabotage retrieval: keep the Friday question, but replace the <code>hits</code> line with <code>hits = retrieve("free lunch")</code>.</h3>
+<textarea placeholder="Predict what the model answers…"></textarea>
+<details><summary>What you should see</summary>"I don't know", even though the right fact is in your index. This proves the warm-up answer: <strong>the generator is capped by retrieval</strong>. When a RAG system gives a wrong answer, check retrieval first.</details>
+
+<h3>e. Remove the "ONLY … I don't know" instruction from the system prompt and repeat c.</h3>
+<textarea></textarea>
+<details><summary>What you should see</summary>The model may now invent a name or ramble about CEOs in general. This one sentence of the system prompt is your first guardrail against hallucination.</details>
+
+<div class="callout interview">
+"Retrieval quality caps answer quality, because the generator only sees the chunks I give it. So when debugging a bad answer, I check retrieval first, and I evaluate retrieval (context precision and recall) separately from generation (faithfulness)."
+</div>
+
+<h2>Read next</h2>
+<p><strong>Primary source:</strong> <a href="https://vickiboykis.com/what_are_embeddings/">Vicki Boykis, <em>What are embeddings</em></a> (free). Read the introduction and the section on how embeddings represent meaning. Skip the maths-heavy parts for now.</p>
+<p>Cheat sheets: <a href="../reference/embeddings-retrieval.html">embeddings &amp; retrieval</a> · <a href="../reference/model-calls.html">model calls</a>.</p>
+
+<div class="callout">
+<strong>Report back to your teacher (Claude):</strong> your quiz score, the scores you saw in b and c, and whether d or e surprised you. Ask about anything that isn't clear.
+</div>
+
+<nav class="course"><a href="0001-first-model-call.html">← 0001 First model call</a><span>Next: 0003 Chunking real documents</span></nav>
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

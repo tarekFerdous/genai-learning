@@ -1,0 +1,52 @@
+/* Shared course stylesheet: every lesson and reference doc links this. */
+:root {
+  --bg: #fffff8; --fg: #1b1b1b; --muted: #5f5f5f; --rule: #d9d6c7;
+  --accent: #8a2b0e; --code-bg: #f3f1e6; --ok: #2f6b2f; --bad: #9b1c1c;
+  --card: #f8f6ea;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --mono: "Cascadia Code", Consolas, "SF Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #151513; --fg: #e9e6da; --muted: #a29f93; --rule: #3a3833;
+    --accent: #e3906f; --code-bg: #22211d; --ok: #8fcf8f; --bad: #f19a9a; --card: #1d1c19; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 19px/1.6 var(--serif); }
+main { max-width: 46rem; margin: 0 auto; padding: 3rem 1rem 5rem; }
+h1 { font-weight: 400; font-size: 2.2rem; line-height: 1.2; margin: 0 0 .25rem; }
+h2 { font-weight: 400; font-style: italic; font-size: 1.5rem; margin: 2.5rem 0 .5rem; border-top: 1px solid var(--rule); padding-top: 1.5rem; }
+h3 { font-weight: 600; font-size: 1.05rem; margin: 1.5rem 0 .25rem; }
+.subtitle { color: var(--muted); font-style: italic; margin: 0 0 2rem; }
+a { color: var(--accent); }
+code { font: .85em var(--mono); background: var(--code-bg); padding: .1em .3em; border-radius: 3px; }
+pre { background: var(--code-bg); padding: 1rem; overflow-x: auto; border-radius: 4px; font-size: .8rem; line-height: 1.5; }
+pre code { background: none; padding: 0; font-size: inherit; }
+.meta { font-size: .85rem; color: var(--muted); }
+.callout { background: var(--card); border-left: 3px solid var(--accent); padding: .75rem 1rem; margin: 1.25rem 0; }
+.interview { border-left-color: var(--ok); }
+.interview::before { content: "Say it in an interview"; display: block; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ok); }
+.sidenote { font-size: .85rem; color: var(--muted); }
+ol.steps > li { margin-bottom: 1rem; }
+details { background: var(--card); padding: .5rem 1rem; margin: .75rem 0; border-radius: 4px; }
+summary { cursor: pointer; color: var(--accent); }
+textarea { width: 100%; min-height: 4.5rem; font: inherit; font-size: .9rem; background: var(--bg); color: var(--fg); border: 1px solid var(--rule); padding: .5rem; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; margin: 1rem 0; }
+th, td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+nav.course { display: flex; justify-content: space-between; gap: 1rem; margin-top: 3rem; border-top: 1px solid var(--rule); padding-top: 1rem; font-size: .9rem; }
+
+/* Quiz component (assets/quiz.js) */
+.q { margin: 1.25rem 0; }
+.q p { margin: 0 0 .4rem; font-weight: 600; }
+.q button { display: block; width: 100%; text-align: left; margin: .3rem 0; padding: .5rem .75rem; font: inherit; font-size: .95rem;
+  background: var(--card); color: var(--fg); border: 1px solid var(--rule); border-radius: 4px; cursor: pointer; }
+.q button:hover:not(:disabled) { border-color: var(--accent); }
+.q button.right { border-color: var(--ok); color: var(--ok); }
+.q button.wrong { border-color: var(--bad); color: var(--bad); text-decoration: line-through; }
+.q .feedback { font-size: .9rem; margin-top: .3rem; }
+.score { font-style: italic; color: var(--muted); }
+
+@media print {
+  body { background: #fff; color: #000; font-size: 11pt; }
+  details { display: block; } details > * { display: block; }
+  nav.course, .q button:not(.right) { display: none; }
+}

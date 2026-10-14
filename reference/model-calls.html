@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model Calls Cheat Sheet</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+<h1>Model calls</h1>
+<p class="subtitle">LangChain 1.x · from <a href="../lessons/0001-first-model-call.html">Lesson 0001</a></p>
+
+<h2>Create a model</h2>
+<pre><code>from langchain.chat_models import init_chat_model
+model = init_chat_model("qwen3:8b", model_provider="ollama", temperature=0)
+# or: init_chat_model("claude-haiku-5-5", model_provider="anthropic")</code></pre>
+<table>
+<tr><th>Provider</th><th>Package</th><th>Env var</th></tr>
+<tr><td><code>ollama</code></td><td><code>langchain-ollama</code></td><td>none (local server)</td></tr>
+<tr><td><code>anthropic</code></td><td><code>langchain-anthropic</code></td><td><code>ANTHROPIC_API_KEY</code></td></tr>
+<tr><td><code>openai</code></td><td><code>langchain-openai</code></td><td><code>OPENAI_API_KEY</code></td></tr>
+</table>
+
+<h2>Messages</h2>
+<pre><code>from langchain.messages import SystemMessage, HumanMessage, AIMessage
+messages = [SystemMessage("rules + context"), HumanMessage("question")]</code></pre>
+<p>Stateless: to continue a conversation, append the <code>AIMessage</code> and the next <code>HumanMessage</code>, then send the whole list again.</p>
+
+<h2>Call it</h2>
+<table>
+<tr><td><code>model.invoke(messages)</code></td><td>→ one <code>AIMessage</code></td></tr>
+<tr><td><code>model.stream(messages)</code></td><td>→ iterator of chunks (<code>chunk.content</code>)</td></tr>
+<tr><td><code>model.batch([m1, m2])</code></td><td>→ list of <code>AIMessage</code>, run in parallel</td></tr>
+<tr><td><code>resp.content</code></td><td>the text</td></tr>
+<tr><td><code>resp.usage_metadata</code></td><td><code>input_tokens</code>, <code>output_tokens</code>, <code>total_tokens</code></td></tr>
+</table>
+
+<h2>Knobs</h2>
+<table>
+<tr><td><code>temperature</code></td><td>0 = repeatable (RAG, evals) · higher = more varied</td></tr>
+<tr><td><code>max_tokens</code></td><td>caps output length and cost</td></tr>
+</table>
+
+<h2>Ollama</h2>
+<pre><code>ollama pull qwen3:8b     # download
+ollama list              # what's installed
+ollama ps                # what's loaded in VRAM</code></pre>
+</main>
+</body>
+</html>

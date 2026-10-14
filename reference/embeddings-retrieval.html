@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embeddings & Retrieval Cheat Sheet</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+<h1>Embeddings &amp; retrieval</h1>
+<p class="subtitle">from <a href="../lessons/0002-rag-by-hand.html">Lesson 0002</a></p>
+
+<h2>The RAG order</h2>
+<pre><code>INDEXING (offline):  load → chunk → embed_documents → store (text + vector)
+QUERYING (per req):  embed_query → similarity → top-k → build prompt → LLM → answer</code></pre>
+<p>The LLM is the <strong>last</strong> step. Retrieval is ordinary code that runs before it.</p>
+
+<h2>Embeddings</h2>
+<pre><code>from langchain_ollama import OllamaEmbeddings
+emb = OllamaEmbeddings(model="nomic-embed-text")   # 768 dims
+vecs = emb.embed_documents(["chunk 1", "chunk 2"])  # list[list[float]]
+q    = emb.embed_query("question")                  # list[float]</code></pre>
+<ul>
+<li>Use the same model for the query and the chunks. Changing models means re-embedding everything.</li>
+<li>You can't get text back from a vector, so store the chunk text next to it.</li>
+</ul>
+
+<h2>Cosine similarity</h2>
+<pre><code>dot(a, b) / (|a| × |b|)      # 1 = same meaning, ~0 = unrelated</code></pre>
+<p>Scores are relative: compare rank and gap, not absolute values. Top-k always returns k items, so a threshold is what lets it return "nothing relevant".</p>
+
+<h2>Grounding prompt</h2>
+<pre><code>Answer using ONLY the context below.
+If the answer is not in the context, say "I don't know."
+
+Context:
+- {chunk 1}
+- {chunk 2}</code></pre>
+
+<h2>Debugging a bad answer</h2>
+<ol>
+<li>Print the retrieved chunks and their scores. Is the right chunk there?</li>
+<li>If not, it's a <strong>retrieval</strong> problem: chunking, embedding model, k, or the query wording.</li>
+<li>If it is, it's a <strong>generation</strong> problem: the prompt, the model, or the context ordering.</li>
+</ol>
+</main>
+</body>
+</html>
