@@ -14,7 +14,7 @@ My hands-on path from "watched a RAG tutorial" to a deployed, production-grade R
 | # | Lesson | Status |
 |---|--------|--------|
 | 0001 | [First model call, provider-agnostic](lessons/0001-first-model-call.html) | ✅ |
-| 0002 | [RAG by hand: embeddings + similarity](lessons/0002-rag-by-hand.html) | ⏳ |
+| 0002 | [RAG by hand: embeddings + similarity](lessons/0002-rag-by-hand.html) | ✅ |
 
 ## Stack
 Python 3.13 · uv · LangChain 1.x · LangGraph 1.x · Ollama (local dev) · frontier APIs (deploy)

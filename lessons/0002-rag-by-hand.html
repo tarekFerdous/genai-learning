@@ -149,7 +149,11 @@ print("\n" + response.content)</code></pre></li>
 
 <h3>e. Remove the "ONLY … I don't know" instruction from the system prompt and repeat c.</h3>
 <textarea></textarea>
-<details><summary>What you should see</summary>The model may now invent a name or ramble about CEOs in general. This one sentence of the system prompt is your first guardrail against hallucination.</details>
+<details><summary>What you should see</summary>It depends on the model. Qwen3-8B usually still says that the CEO isn't mentioned, because modern models are trained to stay with the context they're given. Older, smaller or differently tuned models may invent a name. Keep the instruction anyway: it's one sentence of insurance, and you <em>measure</em> model behaviour (evals, Phase 3) rather than assume it.</details>
+
+<h3>f. With the instruction still removed, ask <code>"How many vacation days do Acme interns get?"</code></h3>
+<textarea placeholder="Predict: 25, or 'interns not mentioned'?"></textarea>
+<details><summary>Why this one is harder</summary>Hallucinations usually come from <strong>near-misses</strong>: the context covers annual leave but never mentions interns. Answering "25" is an unsupported assumption that looks like an answer. Questions that are absent but closely related are the hardest test of how well an answer is grounded, and the most valuable kind to put in an eval set.</details>
 
 <div class="callout interview">
 "Retrieval quality caps answer quality, because the generator only sees the chunks I give it. So when debugging a bad answer, I check retrieval first, and I evaluate retrieval (context precision and recall) separately from generation (faithfulness)."
