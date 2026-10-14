@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chunking Cheat Sheet</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+<h1>Chunking</h1>
+<p class="subtitle">from <a href="../lessons/0003-chunking-real-documents.html">Lesson 0003</a></p>
+
+<h2>Load a PDF with page metadata</h2>
+<pre><code>from pypdf import PdfReader
+from langchain_core.documents import Document
+pages = [Document(page_content=p.extract_text(), metadata={"source": name, "page": i + 1})
+         for i, p in enumerate(PdfReader(path).pages)]</code></pre>
+
+<h2>Split</h2>
+<pre><code>from langchain_text_splitters import RecursiveCharacterTextSplitter
+splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+chunks = splitter.split_documents(pages)   # metadata copied to every chunk
+# split_text(str) -> list[str] if you don't need Documents</code></pre>
+
+<h2>Rules of thumb</h2>
+<table>
+<tr><td><code>chunk_size</code></td><td>Counts <strong>characters</strong> by default. ~4 chars ≈ 1 token.</td></tr>
+<tr><td>Starting point</td><td>~200–500 tokens (≈800–2000 chars). Tune against questions with known answers.</td></tr>
+<tr><td>Overlap</td><td>Helps recall for small chunks. Costs redundancy.</td></tr>
+<tr><td>Embedding limit</td><td><code>nomic-embed-text</code>: 2K tokens. Longer input may be cut off without warning.</td></tr>
+</table>
+
+<h2>Trade-off</h2>
+<table>
+<tr><th>Small chunks</th><th>Large chunks</th></tr>
+<tr><td>+ precise match<br>− fact separated from context</td><td>+ context kept<br>− blended vector, more prompt tokens</td></tr>
+</table>
+
+<h2>Checklist</h2>
+<ol>
+<li>Print the extracted text. Is it readable?</li>
+<li>Print a few chunks. Do they start and end in sensible places?</li>
+<li>Do the questions you know answers to retrieve the right chunk?</li>
+<li>Is the metadata (source, page) on every chunk?</li>
+</ol>
+</main>
+</body>
+</html>

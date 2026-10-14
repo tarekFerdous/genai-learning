@@ -36,8 +36,9 @@ def retrieve(question, k=2):
 
 question1 = "Can I deploy to production on Friday afternoon?"
 question2 = "Is working from home allowed?"
-question3 = "What is the CEO's name?'"
-hits = retrieve(question3)
+question3 = "What is the CEO's name?"
+question4 = "How many vacation days do Acme interns get?"
+hits = retrieve(question4)
 for score, text in hits:
     print(f"{score:.3f} {text}")
     
@@ -49,7 +50,7 @@ response = model.invoke([
         "If the answer is not in the context, say \"\"\n\n"
         f"Context:\n{context}"
     ),
-    HumanMessage(question3)
+    HumanMessage(question4)
 ])
 
 print("\n", response.content)

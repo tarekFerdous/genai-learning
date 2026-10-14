@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>0003 · Chunking Real Documents</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main>
+<p class="meta">Lesson 0003 · Phase 1: Foundations · ~45 min</p>
+<h1>Chunking real documents</h1>
+<p class="subtitle">One win: turn a real 15-page PDF into chunks with page metadata, and see for yourself how chunk size decides what retrieval can find.</p>
+
+<div class="callout">
+<strong>Why this next?</strong> In 0002, the chunks came pre-cut: one clean fact per line. Real documents arrive as messy PDFs.
+How you cut them is one of the biggest levers on RAG quality, and you can only see that by looking at the chunks.
+</div>
+
+<h2>1 · Warm-up</h2>
+<div class="quiz">
+  <div class="q" data-correct="2" data-why="From 0002: the generator can't be better than retrieval. Print the context first.">
+    <p>1. Your RAG bot gives a wrong answer. What do you check first?</p>
+    <button>Whether the temperature is set high</button>
+    <button>Whether the model is large enough</button>
+    <button>Whether the right chunk was retrieved</button>
+    <button>Whether the prompt is long enough</button>
+  </div>
+  <p class="score"></p>
+</div>
+
+<h2>2 · Knowledge: the three decisions in chunking</h2>
+<h3>Loading: PDFs are lossy</h3>
+<p>A PDF stores where each character sits on the page, not paragraphs or tables. Text extraction rebuilds the reading order, and it gets things wrong: broken hyphenation, page headers in the middle of a sentence, tables flattened into number soup.
+<strong>Garbage in, garbage out:</strong> no chunking strategy can fix text that was extracted badly.</p>
+
+<h3>Size: a trade-off, not a magic number</h3>
+<table>
+<tr><th>Too small</th><th>Too large</th></tr>
+<tr><td>A fact gets separated from what it's about ("h = 8" without "base model"). The vector is precise but missing context.</td><td>Many topics get blended into one vector, so it matches everything weakly. It also wastes prompt tokens, and with them latency and money.</td></tr>
+</table>
+<p>Chroma's evaluation found that ~200-token chunks gave the best <em>precision</em>, while recall stayed fairly similar across sizes. Overlap helped recall for small chunks but cost efficiency
+(<a href="https://www.trychroma.com/research/evaluating-chunking">Smith &amp; Troynikov, Chroma, 2024</a>). Their main advice, repeated elsewhere: <strong>always look at your data</strong>, and don't trust library defaults
+(<a href="https://jxnl.co/writing/2025/09/11/text-chunking-strategies-for-rag-applications/">Jason Liu with Anton Troynikov</a>).</p>
+
+<h3>Splitter: recursive = respect structure</h3>
+<p><code>RecursiveCharacterTextSplitter</code> tries to keep larger units (paragraphs) together, and only falls back to lines, then words, when a unit is too big
+(<a href="https://docs.langchain.com/oss/python/integrations/splitters">LangChain: Text splitters</a>).
+<code>chunk_size</code> counts <strong>characters</strong> by default (Python's <code>len</code>), not tokens. Roughly, 1 token ≈ 4 English characters.
+<code>chunk_overlap</code> repeats the end of one chunk at the start of the next, so a fact that falls on a boundary still appears whole in at least one chunk.</p>
+<p class="sidenote">Hidden limit: <code>nomic-embed-text</code> has a 2K-token context window (<a href="https://ollama.com/library/nomic-embed-text">Ollama</a>). Anything longer than that may be cut off without warning before it's embedded, so a huge chunk's later text never gets into its vector.</p>
+
+<h3>Metadata: the basis for citations</h3>
+<p>Each chunk is a <code>Document(page_content=..., metadata={...})</code>. The splitter copies the parent's metadata to every chunk, so if you record <code>page</code> at load time, every retrieved chunk can be cited as "page 5".</p>
+
+<div class="quiz">
+  <div class="q" data-correct="0" data-why="The default length_function is len, i.e. characters. Token-based splitting is possible, but you have to ask for it.">
+    <p>2. <code>chunk_size=1000</code> in <code>RecursiveCharacterTextSplitter</code> measures…</p>
+    <button>Characters, unless you pass a length function</button>
+    <button>Tokens, as counted by the embedding model</button>
+    <button>Words, split on whitespace between each term</button>
+    <button>Sentences, detected by the punctuation in text</button>
+  </div>
+  <div class="q" data-correct="3" data-why="Overlap is insurance for boundaries. It costs storage and some redundancy in retrieved context.">
+    <p>3. Why add chunk overlap?</p>
+    <button>So the vector store finds duplicates faster</button>
+    <button>So embeddings become more accurate for chunks</button>
+    <button>So the LLM reads every page twice</button>
+    <button>So facts spanning a boundary stay intact</button>
+  </div>
+  <div class="q" data-correct="1" data-why="Too-small chunks keep the number but lose what it refers to. Too-large chunks are the ones that hit the embedding limit and cost more tokens.">
+    <p>4. What is the main risk of very small chunks?</p>
+    <button>Exceeding the embedding model's maximum input length</button>
+    <button>Losing the context that gives facts meaning</button>
+    <button>Making the vector store reject the input</button>
+    <button>Costing more tokens in every final prompt</button>
+  </div>
+  <div class="q" data-correct="2" data-why="Metadata isn't embedded. It travels with the chunk, so you can cite, filter (e.g. by document or date) and debug.">
+    <p>5. Why record page metadata on every chunk?</p>
+    <button>To make the embeddings more semantically accurate</button>
+    <button>To reduce the number of chunks created</button>
+    <button>To cite sources and let users verify</button>
+    <button>Because the splitter fails without any metadata</button>
+  </div>
+  <p class="score"></p>
+</div>
+
+<h2>3 · Do it</h2>
+<p>Our document is the paper that introduced the Transformer, <em>Attention Is All You Need</em> (<a href="https://arxiv.org/abs/1706.03762">arXiv:1706.03762</a>): 15 pages, with equations, tables and references. It's realistic and messy.</p>
+<ol class="steps">
+<li>From <code>labs\</code>:
+<pre><code>uv add pypdf langchain-text-splitters</code></pre></li>
+<li>Create <code>labs\src\labs\003_chunking.py</code>:
+<pre><code>import math
+from pathlib import Path
+from urllib.request import urlretrieve
+
+from langchain_core.documents import Document
+from langchain_ollama import OllamaEmbeddings
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from pypdf import PdfReader
+
+PDF = Path("data/attention.pdf")
+if not PDF.exists():
+    PDF.parent.mkdir(exist_ok=True)
+    urlretrieve("https://arxiv.org/pdf/1706.03762", PDF)
+
+# ---------- LOAD: one Document per page, page number kept as metadata ----------
+reader = PdfReader(PDF)
+pages = [
+    Document(page_content=page.extract_text(), metadata={"source": PDF.name, "page": i + 1})
+    for i, page in enumerate(reader.pages)
+]
+print(f"{len(pages)} pages, {sum(len(p.page_content) for p in pages):,} characters")
+
+# ---------- CHUNK ----------
+CHUNK_SIZE, OVERLAP = 1000, 200
+splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=OVERLAP)
+chunks = splitter.split_documents(pages)
+print(f"{len(chunks)} chunks (size={CHUNK_SIZE}, overlap={OVERLAP})")
+
+# ---------- EMBED + RETRIEVE (your 0002 code, now carrying Documents) ----------
+embedder = OllamaEmbeddings(model="nomic-embed-text")
+vectors = embedder.embed_documents([c.page_content for c in chunks])
+
+
+def cosine(a, b):
+    dot = sum(x * y for x, y in zip(a, b))
+    norms = math.sqrt(sum(x * x for x in a)) * math.sqrt(sum(y * y for y in b))
+    return dot / norms
+
+
+def retrieve(question, k=3):
+    q = embedder.embed_query(question)
+    scored = [(cosine(q, vec), chunk) for chunk, vec in zip(chunks, vectors)]
+    scored.sort(key=lambda s: s[0], reverse=True)  # Documents can't be compared, so sort by score only
+    return scored[:k]
+
+
+question = "How many attention heads does the base Transformer model use?"
+for score, chunk in retrieve(question):
+    print(f"\n--- {score:.3f} | page {chunk.metadata['page']} | {len(chunk.page_content)} chars")
+    print(chunk.page_content[:400])</code></pre></li>
+<li>Run it from <code>labs\</code> with <code>uv run src\labs\003_chunking.py</code>. The PDF downloads into <code>labs\data\</code> on the first run.</li>
+</ol>
+<p class="sidenote">Ground truth for checking: the paper says the base model uses <strong>h = 8</strong> heads (Section 3.2.2), and the big model scores <strong>28.4 BLEU</strong> on English→German (abstract and Table 2). Knowing the right answer in advance is how you evaluate retrieval. Phase 3 scales this up into an eval set.</p>
+
+<h2>4 · Practice: predict, then run</h2>
+
+<h3>a. Look before you chunk. Add <code>print(pages[2].page_content[:1500])</code>. What extraction damage do you expect?</h3>
+<textarea></textarea>
+<details><summary>What to look for</summary>Words split by hyphenation, equations turned into scattered symbols, figure labels mixed into the text, missing or extra line breaks. All of it gets embedded exactly as extracted. Production systems often use layout-aware parsers for this reason. We'll come back to it when we choose the capstone's data.</details>
+
+<h3>b. With 1000/200: is the "h = 8" chunk in the top 3? At what rank?</h3>
+<textarea></textarea>
+
+<h3>c. Change to <code>CHUNK_SIZE, OVERLAP = 200, 0</code>. Predict: how many chunks? Does "h = 8" still rank, and does the chunk still say <em>what</em> has 8 heads?</h3>
+<textarea></textarea>
+<details><summary>What you should see</summary>Roughly 5× more chunks. The matching chunk may be tiny, and the number can end up cut off from "base model", or from the sentence that explains it. That's precise but missing context. Your rank and scores may differ from mine, and that's the point: you measure, you don't assume.</details>
+
+<h3>d. Now <code>4000, 0</code>. Predict the top score compared with c, and how much irrelevant text you'd send to the LLM.</h3>
+<textarea></textarea>
+<details><summary>What you should see</summary>Few chunks, each covering several topics. The right page probably still ranks high, but each retrieved chunk carries ~3,900 characters of unrelated text into the prompt. With k=3, that's ~12K characters of context to answer a question whose answer is one sentence.</details>
+
+<h3>e. Back to 1000/200. Ask <code>"What BLEU score did the big model get on English-to-German?"</code> Print a retrieved chunk that comes from Table 2 (page 8).</h3>
+<textarea placeholder="Can you read the table in the extracted text?"></textarea>
+<details><summary>Why it matters</summary>Tables become rows of numbers without their column headers. The abstract states 28.4 in plain prose, so it may rank above the table, and that's fine. But in financial or technical documents the answer is often <em>only</em> in a table. Table handling is one of the hardest real-world RAG problems, and a good way to make your capstone stand out.</details>
+
+<div class="callout interview">
+"I chose the chunk size empirically, not by default. I inspected the extracted text, tried a few sizes against questions with known answers, and kept page metadata on every chunk so the system can cite sources. Small chunks were more precise but lost context, large ones diluted the embedding and inflated prompt cost, which matches Chroma's chunking evaluation."
+</div>
+
+<h2>Read next</h2>
+<p><strong>Primary source:</strong> <a href="https://www.trychroma.com/research/evaluating-chunking">Chroma, <em>Evaluating Chunking Strategies for Retrieval</em></a> (2024). Read the introduction and the results discussion. Look at how they measure retrieval (recall, precision, IoU), because you'll do the same in Phase 3.</p>
+<p>Cheat sheets: <a href="../reference/chunking.html">chunking</a> · <a href="../reference/embeddings-retrieval.html">embeddings &amp; retrieval</a>.</p>
+
+<div class="callout">
+<strong>Report back to your teacher (Claude):</strong> your quiz score, the rank of the "h = 8" chunk at each of the 3 sizes, and what the extracted table looked like. Ask anything.
+</div>
+
+<nav class="course"><a href="0002-rag-by-hand.html">← 0002 RAG by hand</a><span>Next: 0004 Vector stores</span></nav>
+</main>
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

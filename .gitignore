@@ -6,6 +6,9 @@ build/
 dist/
 *.egg-info
 
+# Downloaded data (re-fetched by scripts)
+labs/data/
+
 # Secrets — never commit API keys
 .env
 .env.*

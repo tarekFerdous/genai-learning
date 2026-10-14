@@ -18,6 +18,14 @@ Versions checked 2026-10-14: `langchain` 1.4.5 (Python ≥3.10), `langgraph` 1.2
   Exact signatures. Use for: when docs prose is ambiguous.
 - [Anthropic: Contextual Retrieval](https://www.anthropic.com/news/contextual-retrieval)
   Primary-source study of contextual embeddings + BM25 hybrid + reranking with measured failure-rate reductions. Use for: retrieval-quality upgrades.
+- [Chroma: Evaluating Chunking Strategies for Retrieval](https://www.trychroma.com/research/evaluating-chunking) (Smith & Troynikov, 2024)
+  Empirical study: ~200-token chunks best precision/IoU, recall similar across sizes, overlap helps small-chunk recall. Use for: chunk-size decisions and retrieval metrics.
+- [Jason Liu: Text chunking strategies](https://jxnl.co/writing/2025/09/11/text-chunking-strategies-for-rag-applications/)
+  Practitioner advice: inspect chunks, distrust defaults, eval with your own queries. Use for: chunking pragmatics.
+- [Vicki Boykis: What are embeddings](https://vickiboykis.com/what_are_embeddings/)
+  Free book-length intro to embeddings. Use for: intuition on vector representations.
+- [LangChain: Text splitters](https://docs.langchain.com/oss/python/integrations/splitters) / [Embedding models](https://docs.langchain.com/oss/python/integrations/text_embedding)
+  Splitter + embedding interfaces. Use for: API details.
 - [Ragas docs](https://docs.ragas.io)
   Faithfulness, context precision/recall, answer relevancy. Note 0.4.x moved metrics to `ragas.metrics.collections`. Use for: eval harness.
 - [Hamel Husain: Your AI Product Needs Evals](https://hamel.dev/blog/posts/evals/)
